@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BB84 QKD szimulátor</title>
+<style>
+  :root {
+    --rekti: #2e7d32;
+    --diag: #1565c0;
+    --eve: #c62828;
+    --bg: #f4f6f8;
+    --panel: #ffffff;
+    --border: #d4dae0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Segoe UI, Arial, sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: #1c2126;
+    line-height: 1.5;
+  }
+  header {
+    background: #10233f;
+    color: #fff;
+    padding: 18px 24px;
+  }
+  header h1 { margin: 0 0 4px; font-size: 22px; }
+  header p { margin: 0; font-size: 13px; color: #b9c6db; }
+  .wrap { max-width: 1150px; margin: 0 auto; padding: 20px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+  .panel h2 { margin: 0 0 12px; font-size: 16px; }
+  .vezerlok { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+  .mezo { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  .mezo label { font-weight: 600; }
+  input[type=number], input[type=text] {
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    font-size: 14px;
+  }
+  input[type=text] { font-family: Consolas, monospace; }
+  button {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 5px;
+    background: #2a5db0;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button:hover { background: #21498c; }
+  button.masodlagos { background: #607080; }
+  button.masodlagos:hover { background: #4d5b68; }
+  button:disabled { background: #b5bdc5; cursor: not-allowed; }
+  .kapcsolo { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+  .lepes-info {
+    background: #eef3fb;
+    border-left: 4px solid #2a5db0;
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 14px;
+    min-height: 44px;
+  }
+  .lepes-gombok { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 5px 7px;
+    text-align: center;
+  }
+  th { background: #eef1f4; position: sticky; left: 0; }
+  td.cimke, th.cimke { text-align: left; background: #f7f9fb; font-weight: 600; white-space: nowrap; }
+  .tabla-gorgo { overflow-x: auto; }
+  .b-rekti { color: var(--rekti); font-weight: 700; }
+  .b-diag { color: var(--diag); font-weight: 700; }
+  .eve-sor td { background: #fdecec; }
+  .eve-sor td.cimke { background: #fbdede; color: var(--eve); }
+  .megtartva { background: #e7f6e8 !important; }
+  .eltero { background: #ffe0e0 !important; font-weight: 700; }
+  .kulcs-doboz {
+    font-family: Consolas, monospace;
+    font-size: 18px;
+    letter-spacing: 3px;
+    background: #10233f;
+    color: #7ef0a3;
+    padding: 10px 14px;
+    border-radius: 6px;
+    word-break: break-all;
+    min-height: 24px;
+  }
+  .qber-wrap { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .qber-sav {
+    flex: 1;
+    min-width: 200px;
+    height: 22px;
+    background: #e3e7eb;
+    border-radius: 11px;
+    overflow: hidden;
+    position: relative;
+  }
+  .qber-kitolt { height: 100%; width: 0; transition: width .3s; background: var(--rekti); }
+  .qber-ertek { font-size: 20px; font-weight: 700; }
+  .donteses { font-weight: 700; padding: 6px 12px; border-radius: 5px; }
+  .ok { background: #e7f6e8; color: #2e7d32; }
+  .baj { background: #fdecec; color: #c62828; }
+  .jelmagyarazat { font-size: 13px; display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
+  .jelmagyarazat span { display: inline-flex; align-items: center; gap: 5px; }
+  .pont { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
+  .hasznalat { font-size: 13px; color: #45515e; }
+  .hasznalat ul { margin: 6px 0 0; padding-left: 20px; }
+  .hiba { color: var(--eve); font-size: 13px; min-height: 16px; }
+  .kezi-mezok { display: none; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+  .kezi-mezok.latszik { display: flex; }
+</style>
+</head>
+<body>
+<header>
+  <h1>BB84 kvantumkulcsszétosztó (QKD) szimulátor</h1>
+  <p>Kvantuminformatikai alkalmazások – 4. házi feladat</p>
+</header>
+
+<div class="wrap">
+
+  <div class="panel">
+    <h2>Beállítások</h2>
+    <div class="vezerlok">
+      <div class="mezo">
+        <label for="nQubit">Qubitek száma</label>
+        <input type="number" id="nQubit" value="12" min="2" max="40">
+      </div>
+      <div class="mezo">
+        <label for="mod">Bemenet módja</label>
+        <select id="mod" style="padding:6px 8px;border:1px solid var(--border);border-radius:5px;">
+          <option value="random">Véletlen</option>
+          <option value="kezi">Kézi megadás</option>
+        </select>
+      </div>
+      <div class="kapcsolo">
+        <input type="checkbox" id="eveOn">
+        <label for="eveOn">Eve lehallgat (támadó)</label>
+      </div>
+      <button id="indit">Protokoll indítása</button>
+    </div>
+
+    <div class="kezi-mezok" id="keziMezok">
+      <div class="mezo">
+        <label for="keziBit">Alice bitjei (pl. 0110...)</label>
+        <input type="text" id="keziBit" placeholder="011010...">
+      </div>
+      <div class="mezo">
+        <label for="keziBazis">Alice bázisai (+ vagy x)</label>
+        <input type="text" id="keziBazis" placeholder="+x+x+x...">
+      </div>
+    </div>
+    <div class="hiba" id="hibaUzenet"></div>
+
+    <div class="hasznalat">
+      <strong>Hogyan használd:</strong>
+      <ul>
+        <li>Állítsd be a qubitek számát, válassz véletlen vagy kézi bemenetet, és add meg, lehallgasson-e Eve.</li>
+        <li>Indítás után a „Következő lépés” gombbal haladhatsz végig a protokoll fázisain.</li>
+        <li>Figyeld a QBER-t: Eve bekapcsolva jelentősen megnő, ami lebuktatja a lehallgatást.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Protokoll lépései</h2>
+    <div class="lepes-info" id="lepesInfo">Állítsd be a paramétereket, majd kattints a „Protokoll indítása” gombra.</div>
+    <div class="lepes-gombok">
+      <button id="elozo" class="masodlagos" disabled>&larr; Vissza</button>
+      <button id="kovetkezo" disabled>Következő lépés &rarr;</button>
+      <button id="teljes" class="masodlagos" disabled>Teljes lefuttatás</button>
+      <button id="ujra" class="masodlagos" disabled>Újraindítás</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Átvitel részletei</h2>
+    <div class="tabla-gorgo">
+      <table id="tabla"><tbody></tbody></table>
+    </div>
+    <div class="jelmagyarazat">
+      <span><span class="pont" style="background:var(--rekti)"></span> + rektilineáris bázis (Z)</span>
+      <span><span class="pont" style="background:var(--diag)"></span> × diagonális bázis (X)</span>
+      <span><span class="pont" style="background:#e7f6e8"></span> megtartott pozíció (egyező bázis)</span>
+      <span><span class="pont" style="background:#ffe0e0"></span> eltérő bit (hiba)</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Lehallgatás-ellenőrzés (QBER)</h2>
+    <div class="qber-wrap">
+      <span class="qber-ertek" id="qberErtek">–</span>
+      <div class="qber-sav"><div class="qber-kitolt" id="qberKitolt"></div></div>
+      <span class="donteses" id="dontes"></span>
+    </div>
+    <p class="hasznalat" style="margin-top:10px;">
+      A sifted kulcs egy részét nyilvánosan összehasonlítjuk. Zaj- és lehallgatásmentes esetben a QBER 0%.
+      Teljes intercept-resend lehallgatásnál a hibaarány kb. 25%, küszöb (11%) felett a kulcsot eldobjuk.
+    </p>
+  </div>
+
+  <div class="panel">
+    <h2>Végső közös kulcs</h2>
+    <div class="kulcs-doboz" id="kulcsDoboz"></div>
+  </div>
+
+</div>
+
+<script>
+// ---- Modell ----
+const sim = {
+  n: 0,
+  eveOn: false,
+  aliceBits: [], aliceBases: [],
+  eveBases: [], eveResults: [],
+  bobBases: [], bobResults: [],
+  csatorna: [],          // amit Bob ténylegesen megkap (Eve nélkül = Alice, Eve-vel = Eve újraküldése)
+  megtartott: [],        // bool: egyezik-e Alice és Bob bázisa
+  siftedAlice: [], siftedBob: [],
+  qber: null, mintaIndexek: []
+};
+
+const BAZISOK = ['+', 'x'];
+function veletlenBit() { return Math.random() < 0.5 ? 0 : 1; }
+function veletlenBazis() { return BAZISOK[Math.random() < 0.5 ? 0 : 1]; }
+
+// mérés: egyező bázisnál determinisztikus, eltérőnél véletlen kimenet
+function mer(kuldottBit, kuldoBazis, meroBazis) {
+  if (kuldoBazis === meroBazis) return kuldottBit;
+  return veletlenBit();
+}
+
+function alicetGeneral(n, mod) {
+  sim.aliceBits = [];
+  sim.aliceBases = [];
+  if (mod === 'kezi') {
+    const bitStr = document.getElementById('keziBit').value.trim();
+    const bazisStr = document.getElementById('keziBazis').value.trim().toLowerCase();
+    for (let i = 0; i < n; i++) {
+      sim.aliceBits.push(Number(bitStr[i]));
+      sim.aliceBases.push(bazisStr[i] === 'x' ? 'x' : '+');
+    }
+  } else {
+    for (let i = 0; i < n; i++) {
+      sim.aliceBits.push(veletlenBit());
+      sim.aliceBases.push(veletlenBazis());
+    }
+  }
+}
+
+function eveLehallgat() {
+  sim.eveBases = [];
+  sim.eveResults = [];
+  sim.csatorna = [];
+  for (let i = 0; i < sim.n; i++) {
+    if (sim.eveOn) {
+      const eb = veletlenBazis();
+      const em = mer(sim.aliceBits[i], sim.aliceBases[i], eb);
+      sim.eveBases.push(eb);
+      sim.eveResults.push(em);
+      // Eve a saját mérési eredményét a saját bázisában küldi tovább
+      sim.csatorna.push({ bit: em, bazis: eb });
+    } else {
+      sim.csatorna.push({ bit: sim.aliceBits[i], bazis: sim.aliceBases[i] });
+    }
+  }
+}
+
+function bobMer() {
+  sim.bobBases = [];
+  sim.bobResults = [];
+  for (let i = 0; i < sim.n; i++) {
+    const bb = veletlenBazis();
+    const beJott = sim.csatorna[i];
+    sim.bobResults.push(mer(beJott.bit, beJott.bazis, bb));
+    sim.bobBases.push(bb);
+  }
+}
+
+function sifting() {
+  sim.megtartott = [];
+  sim.siftedAlice = [];
+  sim.siftedBob = [];
+  for (let i = 0; i < sim.n; i++) {
+    const egyezik = sim.aliceBases[i] === sim.bobBases[i];
+    sim.megtartott.push(egyezik);
+    if (egyezik) {
+      sim.siftedAlice.push(sim.aliceBits[i]);
+      sim.siftedBob.push(sim.bobResults[i]);
+    }
+  }
+}
+
+function qberSzamol() {
+  const hossz = sim.siftedAlice.length;
+  sim.mintaIndexek = [];
+  if (hossz === 0) { sim.qber = null; return; }
+  // a sifted kulcs feléből képzünk nyilvános mintát a hibaarány becslésére
+  const mintaMeret = Math.max(1, Math.floor(hossz / 2));
+  let hiba = 0;
+  for (let i = 0; i < mintaMeret; i++) {
+    sim.mintaIndexek.push(i);
+    if (sim.siftedAlice[i] !== sim.siftedBob[i]) hiba++;
+  }
+  sim.qber = hiba / mintaMeret;
+}
+
+// a tényleges kulcs a mintán kívüli rész (a mintát feláldoztuk)
+function vegsoKulcs() {
+  return sim.siftedAlice.slice(sim.mintaIndexek.length).join('');
+}
+
+function bazisSpan(b) {
+  if (b === '+') return '<span class="b-rekti">+</span>';
+  return '<span class="b-diag">×</span>';
+}
+
+// ---- Vezérlő / állapotgép ----
+// fázisok: 0 Alice, 1 küldés, 2 Eve, 3 Bob, 4 sifting, 5 QBER, 6 kulcs
+let fazis = 0;
+let fazisok = [];
+
+const lepesSzovegek = {
+  alice: 'Alice minden qubithez véletlen bitet és véletlen bázist választ (+ vagy ×), és ebben a bázisban kódolva küldi.',
+  kuldes: 'Alice elküldi a qubiteket a kvantumcsatornán. Az állapotot mérés nélkül nem lehet lemásolni (no-cloning).',
+  eve: 'Eve lehallgat: minden qubitet véletlen bázisban mér, majd a mért eredményét a saját bázisában küldi tovább Bobnak. Rossz bázisnál ezzel elrontja az állapotot.',
+  bob: 'Bob minden beérkező qubithez véletlen bázist választ és mér. Ha a bázisa egyezik a küldőével, biztosan a helyes bitet kapja, különben 50% esély a hibára.',
+  sifting: 'Bázis-egyeztetés: Alice és Bob nyilvánosan összeveti a bázisait, és csak az egyező bázisú pozíciókat tartják meg. Ez a sifted kulcs.',
+  qber: 'A sifted kulcs egy részét nyilvánosan összehasonlítják, és kiszámolják a hibaarányt (QBER). Nagy QBER lehallgatásra utal.',
+  kulcs: 'A megmaradt (nem feláldozott) bitekből áll össze a közös titkos kulcs – feltéve, hogy a QBER a küszöb alatt maradt.'
+};
+
+function fazisokatOsszeallit() {
+  fazisok = ['alice', 'kuldes'];
+  if (sim.eveOn) fazisok.push('eve');
+  fazisok.push('bob', 'sifting', 'qber', 'kulcs');
+}
+
+function el(id) { return document.getElementById(id); }
+
+function hibaKiir(msg) { el('hibaUzenet').textContent = msg || ''; }
+
+function keziBemenetEllenoriz(n) {
+  const bitStr = el('keziBit').value.trim();
+  const bazisStr = el('keziBazis').value.trim().toLowerCase();
+  if (bitStr.length < n || bazisStr.length < n) {
+    return 'Legalább ' + n + ' karaktert adj meg mindkét mezőben.';
+  }
+  if (!/^[01]+$/.test(bitStr.slice(0, n))) return 'A bitek csak 0 és 1 lehetnek.';
+  if (!/^[+x]+$/.test(bazisStr.slice(0, n))) return 'A bázisok csak + és x lehetnek.';
+  return null;
+}
+
+function protokollIndit() {
+  const n = Number(el('nQubit').value);
+  const mod = el('mod').value;
+  if (mod === 'kezi') {
+    const h = keziBemenetEllenoriz(n);
+    if (h) { hibaKiir(h); return; }
+  }
+  hibaKiir('');
+  sim.n = n;
+  sim.eveOn = el('eveOn').checked;
+
+  alicetGeneral(n, mod);
+  eveLehallgat();
+  bobMer();
+  sifting();
+  qberSzamol();
+
+  fazisokatOsszeallit();
+  fazis = 0;
+  frissit();
+  el('kovetkezo').disabled = false;
+  el('teljes').disabled = false;
+  el('ujra').disabled = false;
+  el('elozo').disabled = true;
+}
+
+function kovetkezo() {
+  if (fazis < fazisok.length - 1) { fazis++; frissit(); }
+}
+function elozo() {
+  if (fazis > 0) { fazis--; frissit(); }
+}
+function teljes() { fazis = fazisok.length - 1; frissit(); }
+function ujra() {
+  fazis = 0; frissit();
+}
+
+// melyik fázisig látszódjon az adott adat
+function fazisIndex(nev) { return fazisok.indexOf(nev); }
+function lathato(nev) { return fazis >= fazisIndex(nev); }
+
+function frissit() {
+  const aktNev = fazisok[fazis];
+  el('lepesInfo').textContent = lepesSzovegek[aktNev];
+  el('elozo').disabled = fazis === 0;
+  el('kovetkezo').disabled = fazis === fazisok.length - 1;
+  renderTabla();
+  renderQber();
+  renderKulcs();
+}
+
+function renderTabla() {
+  const sorok = [];
+  const idx = Array.from({ length: sim.n }, (_, i) => i + 1);
+
+  sorok.push('<tr><th class="cimke">#</th>' + idx.map(i => '<th>' + i + '</th>').join('') + '</tr>');
+
+  if (lathato('alice')) {
+    sorok.push('<tr><td class="cimke">Alice bit</td>' +
+      sim.aliceBits.map(b => '<td>' + b + '</td>').join('') + '</tr>');
+    sorok.push('<tr><td class="cimke">Alice bázis</td>' +
+      sim.aliceBases.map(b => '<td>' + bazisSpan(b) + '</td>').join('') + '</tr>');
+  }
+
+  if (sim.eveOn && lathato('eve')) {
+    sorok.push('<tr class="eve-sor"><td class="cimke">Eve bázis</td>' +
+      sim.eveBases.map(b => '<td>' + bazisSpan(b) + '</td>').join('') + '</tr>');
+    sorok.push('<tr class="eve-sor"><td class="cimke">Eve mérés</td>' +
+      sim.eveResults.map(b => '<td>' + b + '</td>').join('') + '</tr>');
+  }
+
+  if (lathato('bob')) {
+    sorok.push('<tr><td class="cimke">Bob bázis</td>' +
+      sim.bobBases.map(b => '<td>' + bazisSpan(b) + '</td>').join('') + '</tr>');
+    sorok.push('<tr><td class="cimke">Bob mérés</td>' +
+      sim.bobResults.map(b => '<td>' + b + '</td>').join('') + '</tr>');
+  }
+
+  if (lathato('sifting')) {
+    sorok.push('<tr><td class="cimke">Megtartva?</td>' +
+      sim.megtartott.map(m => '<td class="' + (m ? 'megtartva' : '') + '">' + (m ? '✓' : '–') + '</td>').join('') + '</tr>');
+  }
+
+  // a QBER fázistól jelöljük az eltérő (hibás) biteket a megtartott pozíciókon
+  if (lathato('qber')) {
+    let siftIdx = 0;
+    const cellak = sim.megtartott.map((m, i) => {
+      if (!m) return '<td>–</td>';
+      const eltero = sim.aliceBits[i] !== sim.bobResults[i];
+      siftIdx++;
+      return '<td class="' + (eltero ? 'eltero' : 'megtartva') + '">' +
+        (eltero ? '≠' : '=') + '</td>';
+    });
+    sorok.push('<tr><td class="cimke">Egyezés</td>' + cellak.join('') + '</tr>');
+  }
+
+  el('tabla').querySelector('tbody').innerHTML = sorok.join('');
+}
+
+function renderQber() {
+  if (!lathato('qber') || sim.qber === null) {
+    el('qberErtek').textContent = '–';
+    el('qberKitolt').style.width = '0';
+    el('dontes').textContent = '';
+    el('dontes').className = 'donteses';
+    return;
+  }
+  const szaz = (sim.qber * 100).toFixed(1);
+  el('qberErtek').textContent = szaz + '%';
+  const kitolt = el('qberKitolt');
+  kitolt.style.width = Math.min(100, sim.qber * 100) + '%';
+  kitolt.style.background = sim.qber > 0.11 ? 'var(--eve)' : 'var(--rekti)';
+  const d = el('dontes');
+  if (sim.qber > 0.11) {
+    d.textContent = 'Lehallgatás gyanúja – kulcs eldobva';
+    d.className = 'donteses baj';
+  } else {
+    d.textContent = 'Biztonságos – kulcs elfogadva';
+    d.className = 'donteses ok';
+  }
+}
+
+function renderKulcs() {
+  if (!lathato('kulcs')) { el('kulcsDoboz').textContent = ''; return; }
+  if (sim.qber !== null && sim.qber > 0.11) {
+    el('kulcsDoboz').textContent = '(a kulcsot eldobtuk a magas QBER miatt)';
+    return;
+  }
+  const k = vegsoKulcs();
+  el('kulcsDoboz').textContent = k.length ? k : '(nincs elég megtartott bit)';
+}
+
+// kézi mezők megjelenítése
+el('mod').addEventListener('change', e => {
+  el('keziMezok').classList.toggle('latszik', e.target.value === 'kezi');
+});
+
+el('indit').addEventListener('click', protokollIndit);
+el('kovetkezo').addEventListener('click', kovetkezo);
+el('elozo').addEventListener('click', elozo);
+el('teljes').addEventListener('click', teljes);
+el('ujra').addEventListener('click', ujra);
+
+// ---- Önellenőrzés (csak ?test URL-nél fut, konzolra ír) ----
+if (location.search.includes('test')) {
+  (function () {
+    const N = 20000;
+    // egyező bázis -> mindig helyes
+    let hiba = 0;
+    for (let i = 0; i < N; i++) { const b = veletlenBit(); if (mer(b, '+', '+') !== b) hiba++; }
+    console.log('Egyező bázis hiba (0 várt):', hiba);
+
+    // teljes Eve-lehallgatás QBER ~25% a sifted kulcson
+    sim.n = N; sim.eveOn = true;
+    sim.aliceBits = []; sim.aliceBases = [];
+    for (let i = 0; i < N; i++) { sim.aliceBits.push(veletlenBit()); sim.aliceBases.push(veletlenBazis()); }
+    eveLehallgat(); bobMer(); sifting();
+    let elteres = 0;
+    for (let i = 0; i < sim.siftedAlice.length; i++) if (sim.siftedAlice[i] !== sim.siftedBob[i]) elteres++;
+    console.log('Eve-vel QBER (~0.25 várt):', (elteres / sim.siftedAlice.length).toFixed(3));
+
+    // Eve nélkül QBER 0
+    sim.eveOn = false; eveLehallgat(); bobMer(); sifting();
+    let e2 = 0;
+    for (let i = 0; i < sim.siftedAlice.length; i++) if (sim.siftedAlice[i] !== sim.siftedBob[i]) e2++;
+    console.log('Eve nélkül QBER (0 várt):', e2);
+  })();
+}
+</script>
+</body>
+</html>
+</script>
